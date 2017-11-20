@@ -27,8 +27,7 @@ public class KafkaConsumer extends Thread {
 
 	public KafkaConsumer(String mt) {
 
-		consumer = kafka.consumer.Consumer
-				.createJavaConsumerConnector(createConsumerConfig());
+		consumer = kafka.consumer.Consumer.createJavaConsumerConnector(createConsumerConfig());
 
 		if (mt.equals("news")) {
 			this.topic = KafkaProperties.topic_new;
@@ -59,9 +58,12 @@ public class KafkaConsumer extends Thread {
 		props.put("zookeeper.connect", KafkaProperties.zkConnect_work);
 
 		props.put("group.id", KafkaProperties.groupId1);
-		props.put("zookeeper.session.timeout.ms", "40000");
+		props.put("zookeeper.session.timeout.ms", "5000");
 		props.put("zookeeper.sync.time.ms", "200");
 		props.put("auto.commit.interval.ms", "1000");
+		props.put("zookeeper.connection.timeout.ms", "10000");
+		props.put("rebalance.backoff.ms", "2000");
+		props.put("rebalance.max.retries", "10");
 
 		// try{//init db conn
 		// m_conn = m_idb.getConn(KafkaProperties.dbUrl);
@@ -76,7 +78,7 @@ public class KafkaConsumer extends Thread {
 	// m_idb.doMsg(con,m_msgType,str);
 	// }
 
-	private static void doHDFS(String msg, String str) {
+	private static void doHDFS(String msg, String str) throws Exception {
 		m_chdfs.doHDFS(msg, new Date(), str);
 	}
 
@@ -88,15 +90,16 @@ public class KafkaConsumer extends Thread {
 		Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumer.createMessageStreams(topicCountMap);
 		KafkaStream<byte[], byte[]> stream = consumerMap.get(topic).get(0);
 		ConsumerIterator<byte[], byte[]> it = stream.iterator();
-
+		CleanMap clean=new CleanMap();//定时清除hdfsmap中存入的以写文件
+		clean.start();
 		while (it.hasNext()) {
 
 			String msg = new String(it.next().message());
 			try {
 				if (topic.equals(KafkaProperties.topic_new)) {
-					doHDFS(msg, "news");
+					doHDFS(msg, "news");//写入新闻数据
 				} else {
-					doHDFS(msg, "soc");
+					doHDFS(msg, "soc");//写入社交数据
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
