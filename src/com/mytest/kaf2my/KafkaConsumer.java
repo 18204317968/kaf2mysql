@@ -64,6 +64,7 @@ public class KafkaConsumer extends Thread {
 		props.put("zookeeper.connection.timeout.ms", "10000");
 		props.put("rebalance.backoff.ms", "2000");
 		props.put("rebalance.max.retries", "10");
+		props.put("auto.offset.reset", "largest");
 
 		// try{//init db conn
 		// m_conn = m_idb.getConn(KafkaProperties.dbUrl);
@@ -93,7 +94,7 @@ public class KafkaConsumer extends Thread {
 		CleanMap clean=new CleanMap();//定时清除hdfsmap中存入的以写文件
 		clean.start();
 		while (it.hasNext()) {
-
+			System.out.println("pushStart");
 			String msg = new String(it.next().message());
 			try {
 				if (topic.equals(KafkaProperties.topic_new)) {

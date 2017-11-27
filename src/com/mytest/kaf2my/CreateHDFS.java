@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Hashtable;
 import java.util.Map;
@@ -24,11 +25,18 @@ public class CreateHDFS {
 	
 	public static Map<String,Map<String,Object>> hdfsMap=new Hashtable<String,Map<String,Object>>();
 	public static FileSystem fileSystem=null;
+	CountryUtil util=new CountryUtil();
 	static{
 		hdfsMap.put("past", new Hashtable<String, Object>());
 		Configuration conf=new Configuration();
-		conf.set("fs.default.name", KafkaProperties.FSDEFAULTNAME);
+//		conf.set("fs.default.name", KafkaProperties.FSDEFAULTNAME);
 		conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
+		conf.set("fs.defaultFS", KafkaProperties.FSDEFAULTNAME);
+		conf.set("dfs.nameservices", KafkaProperties.CLUSTERNAME);
+		conf.set("dfs.ha.namenodes."+KafkaProperties.CLUSTERNAME, "nn1,nn2");
+		conf.set("dfs.namenode.rpc-address."+KafkaProperties.CLUSTERNAME+".nn1", KafkaProperties.NN1);
+		conf.set("dfs.namenode.rpc-address."+KafkaProperties.CLUSTERNAME+".nn2", KafkaProperties.NN2);
+		conf.set("dfs.client.failover.proxy.provider."+KafkaProperties.CLUSTERNAME,org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider.class.getName());
 		try {
 			fileSystem=FileSystem.get(conf);
 		} catch (IOException e) {
@@ -84,6 +92,10 @@ public class CreateHDFS {
 		getMethod.releaseConnection();
 		return textSrc;
 	}
+	public boolean isEnglish(String charaString){//判断country是否是中文
+        return charaString.matches("^[a-zA-Z ]*");
+
+    }
 	private Map<String,String> getStr (Map<String,Object> maps,String mt) throws Exception {    
 		Map<String,String> strMap=new Hashtable<String,String>();
     	String str="";
@@ -115,13 +127,23 @@ public class CreateHDFS {
 			if( v_int != null)
  				 cityId = v_int.intValue();
 
-
  			int			cmtCnt			= 0;
  			v_int 		= (Integer)maps.get("cmtCnt");
 			if( v_int != null)
  				 cmtCnt = v_int.intValue();
 
  			String		country			=(String)maps.get("country");
+ 			String country_EN="";
+ 			String country_ZH="";
+ 			if(null!=country&&""!=country){//将传过来的country转换并存入country_EN和country_ZH
+ 				if(isEnglish(country)){
+ 					country_EN=country;
+ 					country_ZH=util.getCountry(country);
+ 				}else{
+ 					country_ZH=country;
+ 					country_EN=util.getCountry(country);
+ 				}
+ 			}
 
  			int			flwCnt			= 0;
  			v_int 		= (Integer)maps.get("flwCnt");
@@ -196,6 +218,12 @@ public class CreateHDFS {
  			}
 
  			String		timeStr			=(String)maps.get("timeStr");
+ 			SimpleDateFormat dateFormat=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+ 			SimpleDateFormat format=new SimpleDateFormat("yyyyMMddHHmmss");
+ 			if(null!=timeStr&&""!=timeStr){
+ 				Date date=dateFormat.parse(timeStr);
+ 				timeStr=format.format(date);
+ 			}
  			
  			String		title			=(String)maps.get("title");
  			if(title != null )	title = getFilterStr(title);
@@ -222,7 +250,8 @@ public class CreateHDFS {
     				+city					+KafkaProperties.BETWEEN
     				+cityId					+KafkaProperties.BETWEEN   	
     				+cmtCnt					+KafkaProperties.BETWEEN    
-    				+country				+KafkaProperties.BETWEEN
+    				+country_EN				+KafkaProperties.BETWEEN
+    				+country_ZH				+KafkaProperties.BETWEEN
     				+flwCnt					+KafkaProperties.BETWEEN    
     				+frdCnt					+KafkaProperties.BETWEEN   	
     				+gender					+KafkaProperties.BETWEEN   	
@@ -323,6 +352,12 @@ public class CreateHDFS {
     		String	provinceNameZh	=(String)maps.get("provinceNameZh");
 
     		String	pubdate			=(String)maps.get("pubdate");
+    		SimpleDateFormat dateFormat=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+ 			SimpleDateFormat format=new SimpleDateFormat("yyyyMMddHHmmss");
+ 			if(null!=pubdate&&""!=pubdate){
+ 				Date date=dateFormat.parse(pubdate);
+ 				pubdate=format.format(date);
+ 			}
 
     		int		sensitiveType	= 0;
  			v_int 		= (Integer)maps.get("sensitiveType");
@@ -396,7 +431,7 @@ public class CreateHDFS {
     	}else{
     		System.out.println("MsgType=["+mt+"] not support now");
     	}
-    	System.out.println(str);
+    	System.out.println(mt+str);
     	return strMap;
     }
 	/*写文件*/
@@ -437,7 +472,7 @@ public class CreateHDFS {
 	/*文件大于指定长度则更换文件名后缀*/
 	public void changeSuffix(String fileName,String str,Map<String,Object> map,Date date) throws Exception{
 //		FileSystem fileSystem=(FileSystem)map.get("fileSystem");
-		FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outputStream");
+		FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outPutStream");
 		if(null!=outPutStream){//取出并关闭当前输出流
 			outPutStream.close();
 			System.out.println("streamClose...");
@@ -533,7 +568,7 @@ public class CreateHDFS {
 				}
 				if(!"".equals(userId)&&!"".equals(taskId)&&!"".equals(mt)){//任务id，用户id，消息类型均不能为空
 					String fileName=KafkaProperties.SOURCEDIR+"/"+mt+"/"+userId+"/"+taskId+"/00";//生成文件名
-					String outPutDir=KafkaProperties.SOURCEDIR+"/"+mt+"/"+userId+"/"+taskId+";";//存入日志中的路径
+					String outPutDir=KafkaProperties.SOURCEDIR+"/"+mt+"/"+userId+"/"+taskId+"/";//存入日志中的路径
 					Map<String, Object> pastMap=(Map<String, Object>)hdfsMap.get("past");//取到读取完成的文件名
 					if(pastMap.containsKey(fileName)){//文件生成就不再重新打开了
 						System.out.println(fileName+" has arready finish writing !!!");

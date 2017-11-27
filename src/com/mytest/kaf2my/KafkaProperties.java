@@ -20,6 +20,9 @@ public interface KafkaProperties {
 	final static String BEGIN = BUNDLE.getString("BEGIN");//数据行分隔符
 	final static String SOURCEDIR = BUNDLE.getString("SOURCEDIR");//hdfs文件生成目录
 	final static String FSDEFAULTNAME = BUNDLE.getString("FSDEFAULTNAME");//fileSystem指定配置路径
+	final static String CLUSTERNAME = BUNDLE.getString("CLUSTERNAME");//集群名称
+	final static String NN1 = BUNDLE.getString("NN1");//NN1指定配置路径
+	final static String NN2 = BUNDLE.getString("NN2");//NN2指定配置路径
 	final static String LOGSDIR = BUNDLE.getString("LOGSDIR");//hdfs中日志存放路径
 	final static String INTERFACE = BUNDLE.getString("INTERFACE");//新闻正文接受接口
 	final static int TIMEOUT = Integer.parseInt(BUNDLE.getString("TIMEOUT"));//接受消息超时时间（单位：s）
