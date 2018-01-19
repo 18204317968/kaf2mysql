@@ -1,12 +1,10 @@
 package com.mytest.kaf2my;
 
-import java.io.PrintStream;
-import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
 
 import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 public class TimeOutJudge extends Thread {
@@ -16,14 +14,8 @@ public class TimeOutJudge extends Thread {
 		this.fileName = fileName;
 	}
 	/*写日志*/
-	public void writeLog(String str,Date date,String fileName,String specialId,String mt) {
+	public void writeLog(String fileName,String specialId,String mt) {
 		try {
-			SimpleDateFormat format=new SimpleDateFormat("yyyyMMddHHmmss");
-			PrintStream log = new PrintStream("./log"+format.format(date)+".txt");//记录到项目本地的日志文件名
-			PrintStream out = System.out;
-			System.setOut(log);
-			System.out.println(str);
-			System.setOut(out);
 			CreateHDFS.writeLog(fileName, specialId, mt, 1);//将失败信息同步到hdfs中
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -32,15 +24,11 @@ public class TimeOutJudge extends Thread {
 	/*删除文件*/
 	public void deleteFile(Map<String, Object> map){
 		try{
-			FileSystem fileSystem=(FileSystem)map.get("fileSystem");
 			FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outputStream");
 			if(null!=outPutStream){//先关闭输出流
+				outPutStream.flush();
 				outPutStream.close();
 				System.out.println("streamClose...");
-			}
-			if(null!=fileSystem){//关闭文件系统
-				fileSystem.close();
-				System.out.println("fileSystemClose...");
 			}
 			Map<String, Object> pastMap=(Map<String, Object>)CreateHDFS.hdfsMap.get("past");
 			pastMap.put(fileName, new Date());//记录文件已经写过
@@ -56,14 +44,13 @@ public class TimeOutJudge extends Thread {
 				}
 			}
 			System.out.println("delete...");
-			CreateHDFS.hdfsMap.remove(fileName);//移除map中的filename
-			System.out.println("mapRemove...");
 		}catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 	/*判断文件接收是否超时，如果超时则删除文件并记录日志*/
 	public void run(){
+		ArrayList<String> list=new ArrayList<String>();
 		while (null != CreateHDFS.hdfsMap.get(fileName)) {//在文件还在读写阶段执行
 			synchronized (CreateHDFS.hdfsMap) {
 				Map<String, Object> map = CreateHDFS.hdfsMap.get(fileName);
@@ -73,17 +60,21 @@ public class TimeOutJudge extends Thread {
 					long l = now.getTime() - before.getTime();
 					if (l > KafkaProperties.TIMEOUT * 1000) {//判断间隔时间是否超时
 						deleteFile(map);//删除已经写入的文件
-						String str=fileName+"  Timeout  At  " +now;
-						writeLog(str,now,fileName,(String)map.get("specialId"),(String)map.get("mt"));//记录日志
+						list.add(fileName);
+						writeLog(fileName,(String)map.get("specialId"),(String)map.get("mt"));//记录日志
 						break;
 					}
 				}
 			}
-			try {
-				Thread.sleep(20*1000);//每20秒检查一次
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		}
+		if(null!=list&&list.size()>0){
+			CreateHDFS.hdfsMap.remove(fileName);//移除map中的filename
+			System.out.println("mapRemove...");
+		}
+		try {
+			Thread.sleep(20*1000);//每20秒检查一次
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 	}
 }

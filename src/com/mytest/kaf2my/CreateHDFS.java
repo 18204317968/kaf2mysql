@@ -3,6 +3,7 @@ package com.mytest.kaf2my;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -45,8 +46,9 @@ public class CreateHDFS {
 	}
 	@SuppressWarnings("unchecked")
 	private  Map<String,Object> parseJson (String jsonStr) {//创建hdfs文件  
-    	String json=jsonStr.replace(KafkaProperties.BETWEEN, ",");
-    	json=json.replace(KafkaProperties.BEGIN, " ");
+    	String json=jsonStr.replace(KafkaProperties.BETWEEN,",");
+    	json=json.replace("\\n"," ");
+    	json=json.replace(KafkaProperties.BEGIN," ");
    	    Map<String,Object> maps = (Map<String,Object>)JSON.parse(json);  
    	    /*for (Object map : maps.entrySet()){  
     		System.out.println(((Map.Entry)map).getKey()+"=[" + ((Map.Entry)map).getValue()+"]");  
@@ -55,11 +57,12 @@ public class CreateHDFS {
     } 
 	
 	
-	public String getFilterStr(String str){//替换字符串中的\和'
+	public String getFilterStr(String str){//替换字符串中的\n和|
     	
 		if( str != null ){
-			str = str.replace("\"", "\\\"");
-			str = str.replace("'", "");
+			str = str.replace(KafkaProperties.BETWEEN,",");
+			str=str.replace("\\n"," ");
+			str=str.replace(KafkaProperties.BEGIN," ");
 		}
 		return str;
     }
@@ -431,7 +434,7 @@ public class CreateHDFS {
     	}else{
     		System.out.println("MsgType=["+mt+"] not support now");
     	}
-    	System.out.println(mt+str);
+//    	System.out.println(mt+str);
     	return strMap;
     }
 	/*写文件*/
@@ -448,13 +451,13 @@ public class CreateHDFS {
 //			conf.set("fs.default.name", KafkaProperties.FSDEFAULTNAME);
 //			conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
 //			FileSystem fileSystem=FileSystem.get(conf);
-			System.out.println("configue...");
-			FSDataOutputStream outPutStream=fileSystem.create(new Path(fileName+"1.dat"));//生成收割文件
+//			System.out.println("configue...");
+			FSDataOutputStream outPutStream=fileSystem.create(new Path(fileName+"1.dat"));//生成第一个文件
 			System.out.println("create...");
 			String s=str.substring(KafkaProperties.BEGIN.length());//文件首条记录去掉分隔符
 			outPutStream.write(s.getBytes("UTF-8"));
 			System.out.println("write...");
-			outPutStream.flush();
+//			outPutStream.flush();
 			Map<String,Object> map=new Hashtable<String,Object>();//将本次读写信息存入map中
 //			map.put("fileSystem", fileSystem);
 			map.put("outPutStream", outPutStream);
@@ -463,7 +466,7 @@ public class CreateHDFS {
 			map.put("mt", mt);
 			map.put("suffix", 1);//文件名后缀
 			map.put("size", s.getBytes("UTF-8").length);
-//			map.put("names",fileName+"1.txt");//拼接文件名
+			map.put("names",fileName+"1.dat");//拼接文件名
 			hdfsMap.put(fileName, map);
 			TimeOutJudge judge=new TimeOutJudge(fileName);
 			judge.start();//判断是否接收超时
@@ -474,6 +477,7 @@ public class CreateHDFS {
 //		FileSystem fileSystem=(FileSystem)map.get("fileSystem");
 		FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outPutStream");
 		if(null!=outPutStream){//取出并关闭当前输出流
+			outPutStream.flush();
 			outPutStream.close();
 			System.out.println("streamClose...");
 		}
@@ -483,7 +487,7 @@ public class CreateHDFS {
 //		}
 		int suffix=(Integer)map.get("suffix");
 		map.put("suffix", ++suffix);//文件后缀自增
-//		map.put("names", (String)map.get("names")+"&&"+fileName+suffix+".txt");//拼接新的文件名
+		map.put("names", (String)map.get("names")+"&&"+fileName+suffix+".dat");//拼接新的文件名
 //		Configuration conf=new Configuration();
 //		conf.set("fs.default.name", KafkaProperties.FSDEFAULTNAME);
 //		conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
@@ -494,18 +498,16 @@ public class CreateHDFS {
 		String s=str.substring(KafkaProperties.BEGIN.length());//去掉文件开头的分隔符
 		ops.write(s.getBytes("UTF-8"));
 		System.out.println("write...");
-		ops.flush();
 		map.put("date", date);//更新最后读写时间
 		map.put("size", s.getBytes("UTF-8").length);//重置文件大小
-//		map.put("fileSystem", fs);//将新的输出流放入map中
 		map.put("outPutStream", ops);
 	}
 	public void continueWrite(String str,Map<String,Object> map,Date date) throws Exception{
 		if(null!=map.get("outPutStream")){//取得保存好的输出流
 			FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outPutStream");
 			outPutStream.write(str.getBytes("UTF-8"));//追加
-			System.out.println("append...");
-			outPutStream.flush();
+//			System.out.println("append...");
+//			outPutStream.flush();
 			int size=(Integer)map.get("size");
 			size+=str.getBytes().length;
 			map.put("date", date);//更新文件最后读写时间
@@ -519,6 +521,7 @@ public class CreateHDFS {
 //			FileSystem fileSystem=(FileSystem)map.get("fileSystem");
 			FSDataOutputStream outPutStream=(FSDataOutputStream)map.get("outPutStream");
 			if(null!=outPutStream){//取出并关闭输出流
+				outPutStream.flush();
 				outPutStream.close();
 				System.out.println("streamClose...");
 			}
@@ -547,7 +550,25 @@ public class CreateHDFS {
 		FSDataOutputStream outPutStream=fileSystem.create(new Path(logName));
 		String s=flag+"|"+fileName;//要写入文件的内容
 		outPutStream.write(s.getBytes("UTF-8"));
+		outPutStream.flush();
 		outPutStream.close();
+		SimpleDateFormat format=new SimpleDateFormat("yyyyMMddHHmmss");
+		PrintStream log = new PrintStream("./logs/"+specialId+".txt");//记录到项目本地的日志文件名
+		PrintStream out = System.out;
+		System.setOut(log);
+		String detail="";
+		if(0==flag){
+			detail="Normally";
+		}else if(1==flag){
+			detail="TimeOut";
+		}else if(2==flag){
+			detail="NoneSource";
+		}else if(3==flag){
+			detail="TransferError";
+		}
+		String str=format.format(new Date())+"   "+mt+"   "+specialId+"   "+flag+"   "+detail;
+		System.out.println(str);
+		System.setOut(out);
 //		fileSystem.close();
 	}
 	/*调用*/
@@ -577,6 +598,7 @@ public class CreateHDFS {
 							writeDone(fileName,specialId,mt,outPutDir);//接到结束标识结束文件读写
 						}else if("ERROR".equals(strMap.get("state"))){//异常状态
 							//异常处理，内容待定
+							writeLog(outPutDir,specialId,mt,3);//如果没有数据直接记录日志
 						}
 					}else{
 						str=strMap.get("str");//拿到要书写的字符串

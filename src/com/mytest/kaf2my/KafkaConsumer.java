@@ -23,7 +23,6 @@ public class KafkaConsumer extends Thread {
 	public static CreateHDFS m_chdfs = new CreateHDFS();
 	// public static Connection m_conn =null;
 	// public static String m_msgType="";
-	public static boolean m_workFlag;
 
 	public KafkaConsumer(String mt) {
 
@@ -64,7 +63,7 @@ public class KafkaConsumer extends Thread {
 		props.put("zookeeper.connection.timeout.ms", "10000");
 		props.put("rebalance.backoff.ms", "2000");
 		props.put("rebalance.max.retries", "10");
-		props.put("auto.offset.reset", "largest");
+//		props.put("auto.offset.reset", "largest");
 
 		// try{//init db conn
 		// m_conn = m_idb.getConn(KafkaProperties.dbUrl);
